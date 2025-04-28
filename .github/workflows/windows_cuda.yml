@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -65,6 +65,12 @@ jobs:
           java-version: '17'
           architecture: x64
 
+      - uses: actions/cache@v4
+        id: onnx-node-tests-cache
+        with:
+          path: ${{ github.workspace }}/js/test/
+          key: onnxnodetests-${{ hashFiles('js/scripts/prepare-onnx-node-tests.ts') }}
+
       - name: API Documentation Check and generate
         run: |
           set ORT_DOXY_SRC=${{ github.workspace }}
@@ -84,7 +90,7 @@ jobs:
       - name: Use Nuget 6.x
         uses: nuget/setup-nuget@v2
         with:
-            nuget-version: '6.x'
+          nuget-version: '6.x'
 
       - name: NuGet restore
         run: nuget restore ${{ github.workspace }}\packages.config -ConfigFile ${{ github.workspace }}\NuGet.config -PackagesDirectory ${{ runner.temp }}\build\RelWithDebInfo
