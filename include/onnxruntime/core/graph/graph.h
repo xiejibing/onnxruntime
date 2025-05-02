@@ -1666,8 +1666,16 @@ class Graph {  // NOLINT(clang-analyzer-optin.performance.Padding): preserve exi
   // so they can be used to resolve outer scope dependencies when running BuildConnections for the subgraphs.
   common::Status SetOuterScopeNodeArgs(const std::unordered_set<std::string>& outer_scope_node_args);
 
-  // Implementation for initializer replacement
-  Status ReplaceInitializedTensorImpl(ONNX_NAMESPACE::TensorProto new_initializer, OrtValue ort_value, bool is_external);
+  /// <summary>
+  /// Replace intializers with new_initializer.
+  /// </summary>
+  /// <param name="new_initializer"></param>
+  /// <param name="ort_value">ort_value with data, may be empty</param>
+  /// <param name="must_replace_external">This is true when we replace the initializer with external data
+  /// with OrtValue from the customer, in which case we enforce that the original initializer must have external data</param>
+  /// <returns></returns>
+  Status ReplaceInitializedTensorImpl(ONNX_NAMESPACE::TensorProto new_initializer,
+                                      OrtValue ort_value, bool must_replace_external);
 
   template <typename StringRange>  // range-initializer returning std::string
   std::vector<NodeArg*> CreateNodeArgs(const StringRange& names,

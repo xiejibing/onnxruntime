@@ -1238,9 +1238,13 @@ struct ProviderHostImpl : ProviderHost {
                                                      execution_provider_name, drop_constant_initializers);
   }
 
-  std::unique_ptr<ONNX_NAMESPACE::TensorProto> Utils__GetTensorProtoWithDataIfInMemory(
-      const ONNX_NAMESPACE::TensorProto& tensor_proto) override {
-    return onnxruntime::utils::GetTensorProtoWithDataIfInMemory(tensor_proto);
+  Status Utils__GetTensorProtoWithDataIfInMemory(
+      const ONNX_NAMESPACE::TensorProto& tensor_proto, std::unique_ptr<ONNX_NAMESPACE::TensorProto>& result) override {
+    return onnxruntime::utils::GetTensorProtoWithDataIfInMemory(tensor_proto, result);
+  }
+
+  bool Utils__HasExternalDataInMemory(const ONNX_NAMESPACE::TensorProto& ten_proto) override {
+    return onnxruntime::utils::HasExternalDataInMemory(ten_proto);
   }
 
   // Model (wrapped)
@@ -1510,6 +1514,10 @@ struct ProviderHostImpl : ProviderHost {
   }
   size_t ExternalDataInfo__GetLength(const ExternalDataInfo& p) override {
     return p.GetLength();
+  }
+
+  Status GraphUtils__ConvertInitializerToInlineData(Graph& graph, const std::string& name) override {
+    return graph_utils::ConvertInitializerToInlineData(graph, name);
   }
 
   // OpKernel (direct)

@@ -419,9 +419,13 @@ inline std::unique_ptr<ComputeCapability> MakeComputeCapability(const GraphViewe
                                               execution_provider_name, drop_constant_initializers);
 }
 
-inline std::unique_ptr<ONNX_NAMESPACE::TensorProto> GetTensorProtoWithDataIfInMemory(
-    const ONNX_NAMESPACE::TensorProto& tensor_proto) {
-  return g_host->Utils__GetTensorProtoWithDataIfInMemory(tensor_proto);
+inline Status GetTensorProtoWithDataIfInMemory(
+    const ONNX_NAMESPACE::TensorProto& tensor_proto, std::unique_ptr<ONNX_NAMESPACE::TensorProto>& result) {
+  return g_host->Utils__GetTensorProtoWithDataIfInMemory(tensor_proto, result);
+}
+
+inline bool HasExternalDataInMemory(const ONNX_NAMESPACE::TensorProto& ten_proto) {
+  return g_host->Utils__HasExternalDataInMemory(ten_proto);
 }
 
 }  // namespace utils
@@ -431,8 +435,12 @@ inline NodeArg& AddInitializerWithExternalData(Graph& graph, const ONNX_NAMESPAC
   return g_host->GraphUtils__AddInitializerWithExternalData(graph, new_initializer);
 }
 inline void MakeInitializerCopyIfNotExist(const Graph& src_graph, Graph& dst_graph, const std::string& name,
-                                          bool load_in_memory = false) {
-  g_host->GraphUtils__MakeInitializerCopyIfNotExist(src_graph, dst_graph, name, load_in_memory);
+                                          bool load_inline = false) {
+  g_host->GraphUtils__MakeInitializerCopyIfNotExist(src_graph, dst_graph, name, load_inline);
+}
+
+inline Status ConvertInitializerToInlineData(Graph& graph, const std::string& name) {
+  return g_host->GraphUtils__ConvertInitializerToInlineData(graph, name);
 }
 }  // namespace graph_utils
 

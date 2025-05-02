@@ -1,8 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-#include "core/framework/tensorprotoutils.h"
 #include "core/graph/graph_utils.h"
+
+#include "core/framework/tensorprotoutils.h"
 #include "core/graph/graph.h"
 #include "core/common/logging/logging.h"
 
@@ -276,7 +277,7 @@ NodeArg& AddInitializer(Graph& graph, const ONNX_NAMESPACE::TensorProto& new_ini
 NodeArg& AddInitializerWithExternalData(Graph& graph, const ONNX_NAMESPACE::TensorProto& new_initializer,
                                         Tensor&& tensor) {
   OrtValue ort_value;
-  if (utils::HasExternalData(new_initializer)) {
+  if (utils::HasExternalDataInMemory(new_initializer)) {
     Tensor::InitOrtValue(std::move(tensor), ort_value);
   }
 
@@ -301,25 +302,32 @@ NodeArg& AddInitializerWithExternalData(Graph& graph, const ONNX_NAMESPACE::Tens
 }
 
 void MakeInitializerCopyIfNotExist(const Graph& src_graph, Graph& dst_graph, const std::string& name,
-                                   bool load_in_memory) {
+                                   bool load_inline) {
   const ONNX_NAMESPACE::TensorProto* initializer = nullptr;
   if (src_graph.GetInitializedTensor(name, initializer)) {
     // check if the initializer already exists in the destination graph
     const ONNX_NAMESPACE::TensorProto* existing = nullptr;
     if (!dst_graph.GetInitializedTensor(name, existing)) {
-      OrtValue ort_value;
-      const bool data_in_memory = src_graph.GetOrtValueInitializer(name, ort_value);
-      if (data_in_memory && load_in_memory) {
-        ORT_ENFORCE(ort_value.IsTensor(), "Expecting an initializer that contains data");
-        // This is to accommodate EPs that load initializers on their own and do not understand
-        // our in memory notation.
-        constexpr const bool use_tensor_buffer_false = false;
-        ONNX_NAMESPACE::TensorProto tensor_proto = utils::TensorToTensorProto(ort_value.Get<Tensor>(),
-                                                                              initializer->name(),
-                                                                              use_tensor_buffer_false);
-        dst_graph.AddInitializedTensor(tensor_proto);
+      const bool data_in_memory = utils::HasExternalDataInMemory(*initializer);
+      if (data_in_memory) {
+        if (load_inline) {
+          ONNX_NAMESPACE::TensorProto tensor_proto;
+          ORT_THROW_IF_ERROR(utils::TensorProtoWithExternalDataToTensorProto(*initializer, {}, tensor_proto));
+          dst_graph.AddInitializedTensor(tensor_proto);
+          GetOrCreateNodeArg(dst_graph, tensor_proto);
+        } else {
+          OrtValue ort_value;
+          if (src_graph.GetOrtValueInitializer(name, ort_value)) {
+            // add the initializer to the destination graph
+            ORT_THROW_IF_ERROR(dst_graph.AddInitializedOrtValue(*initializer, ort_value));
+          } else {
+            dst_graph.AddInitializedTensor(*initializer);
+          }
+          GetOrCreateNodeArg(dst_graph, *initializer);
+        }
       } else {
-        ORT_THROW_IF_ERROR(dst_graph.AddInitializedOrtValue(*initializer, ort_value));
+        dst_graph.AddInitializedTensor(*initializer);
+        GetOrCreateNodeArg(dst_graph, *initializer);
       }
     }
   }
@@ -336,6 +344,17 @@ void MakeConstantInitializerCopyIfNotExist(const Graph& src_graph, Graph& dst_gr
       ORT_THROW_IF_ERROR(dst_graph.AddInitializedOrtValue(*initializer, ort_value));
     }
   }
+}
+
+Status ConvertInitializerToInlineData(Graph& graph, const std::string& name) {
+  const ONNX_NAMESPACE::TensorProto* initializer = nullptr;
+  if (graph.GetInitializedTensor(name, initializer) && utils::HasExternalDataInMemory(*initializer)) {
+    ONNX_NAMESPACE::TensorProto tensor_proto;
+    ORT_THROW_IF_ERROR(utils::TensorProtoWithExternalDataToTensorProto(*initializer, {}, tensor_proto));
+    ORT_RETURN_IF_ERROR(graph.ReplaceInitializedTensor(std::move(tensor_proto), OrtValue{}));
+    GetOrCreateNodeArg(graph, tensor_proto);
+  }
+  return Status::OK();
 }
 
 int GetNodeOutputIndexFromOutputName(const Node& node, const std::string& output_name) {

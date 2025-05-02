@@ -102,9 +102,10 @@ TensorShape GetTensorShapeFromTensorProto(const ONNX_NAMESPACE::TensorProto& ten
 /// The function returns a unique_ptr to make it compatible with EPs code.
 /// </summary>
 /// <param name="tensor_proto">source proto</param>
-/// <returns>new tensor proto with data inline or nullptr</returns>
-std::unique_ptr<ONNX_NAMESPACE::TensorProto> GetTensorProtoWithDataIfInMemory(
-    const ONNX_NAMESPACE::TensorProto& tensor_proto);
+/// <param name="result">result, can be nullptr if no data in memory, still a success</param>
+/// <returns>Status</returns>
+Status GetTensorProtoWithDataIfInMemory(const ONNX_NAMESPACE::TensorProto& tensor_proto,
+                                        std::unique_ptr<ONNX_NAMESPACE::TensorProto>& result);
 
 /**
  * deserialize a TensorProto into a preallocated memory buffer on CPU.
@@ -485,6 +486,25 @@ inline bool HasDomain(const ONNX_NAMESPACE::TypeProto_Opaque& op_proto) {
 inline bool HasName(const ONNX_NAMESPACE::TypeProto_Opaque& op_proto) {
   return !op_proto.name().empty();
 }
+
+/// <summary>
+/// Quick check if the this tensor proto has external data in memory.
+/// </summary>
+/// <param name="ten_proto">tensor_proto</param>
+/// <returns>true if ten_proto has external data and it is in memory</returns>
+bool HasExternalDataInMemory(const ONNX_NAMESPACE::TensorProto& ten_proto);
+
+/// <summary>
+/// This function converts TensorProto with external data to TensorProto with inline data.
+/// </summary>
+/// <param name="ten_proto">source</param>
+/// <param name="model_path">model_path, can be empty if data is in memory</param>
+/// <param name="new_tensor_proto">result</param>
+/// <returns>Status</returns>
+Status TensorProtoWithExternalDataToTensorProto(
+    const ONNX_NAMESPACE::TensorProto& ten_proto,
+    const std::filesystem::path& model_path,
+    ONNX_NAMESPACE::TensorProto& new_tensor_proto);
 
 #endif
 

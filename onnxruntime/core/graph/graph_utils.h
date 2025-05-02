@@ -75,11 +75,11 @@ NodeArg& AddInitializerWithExternalData(Graph& graph, const ONNX_NAMESPACE::Tens
 /// <param name="src_graph">source graph s</param>
 /// <param name="dst_graph">destination</param>
 /// <param name="name">initializers name</param>
-/// <param name="load_in_memory">if external data is in memory, make copy inline.
+/// <param name="load_inline">if external data is in memory, make copy inline.
 ///  default is false. This is to accomodate EPs who load initializers on their own and do not understand
 ///          our /*/_ORT_MEM_ADDR_/*/ external data reference</param>
 void MakeInitializerCopyIfNotExist(const Graph& src_graph, Graph& dst_graph, const std::string& name,
-                                   bool load_in_memory = false);
+                                   bool load_inline = false);
 
 /// <summary>
 /// If the constant initializer with the given name does not exist in the destination graph, but exists in the
@@ -91,6 +91,16 @@ void MakeInitializerCopyIfNotExist(const Graph& src_graph, Graph& dst_graph, con
 /// <param name="check_outer_scope">checks outerscope if true</param>
 void MakeConstantInitializerCopyIfNotExist(const Graph& src_graph, Graph& dst_graph,
                                            const std::string& name, bool check_outer_scope);
+
+/// <summary>
+/// If the initializer is present with the graph and has external dat that points
+/// to an OrtValue, convert it to inline data. This is necessary for EPs that can not handle
+/// external initializers that are in memory since our in-memory external data is not ONNX standard.
+/// </summary>
+/// <param name="graph">Graph</param>
+/// <param name="name">intializer name</param>
+/// <returns>Status</returns>
+Status ConvertInitializerToInlineData(Graph& graph, const std::string& name);
 
 /** Gets the index of an output arg with the specified output arg name. */
 int GetNodeOutputIndexFromOutputName(const Node& node, const std::string& output_name);

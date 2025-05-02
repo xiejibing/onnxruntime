@@ -237,6 +237,42 @@ Status TensorProtoToOrtValueImpl(const Env& env, const std::filesystem::path& mo
 
 namespace utils {
 
+bool HasExternalDataInMemory(const ONNX_NAMESPACE::TensorProto& ten_proto) {
+  if (HasExternalData(ten_proto)) {
+    // Retrieve the external data info
+    for (const auto& entry : ten_proto.external_data()) {
+      if (entry.key() == "location") {
+        PathString location = ToWideString(entry.value());
+        return location == kTensorProtoMemoryAddressTag;
+      }
+    }
+  }
+
+  return false;  // No external data in memory
+}
+
+Status TensorProtoWithExternalDataToTensorProto(
+    const ONNX_NAMESPACE::TensorProto& ten_proto,
+    const std::filesystem::path& model_path,
+    ONNX_NAMESPACE::TensorProto& new_tensor_proto) {
+  // Check if the input tensor has external data
+  ORT_RETURN_IF_NOT(HasExternalData(ten_proto), "Input tensor does not have external data.");
+
+  // Copy the metadata from the source tensor to the new tensor
+  new_tensor_proto = ten_proto;
+  new_tensor_proto.clear_external_data();  // Clear external data references
+  new_tensor_proto.clear_raw_data();       // Clear any existing raw data
+
+  // Load the external data into memory
+  std::vector<uint8_t> unpacked_data;
+  ORT_RETURN_IF_ERROR(ReadExternalDataForTensor(ten_proto, model_path, unpacked_data));
+
+  // Set the raw data in the new tensor
+  new_tensor_proto.set_raw_data(unpacked_data.data(), unpacked_data.size());
+
+  return Status::OK();
+}
+
 Status GetExternalDataInfo(const ONNX_NAMESPACE::TensorProto& tensor_proto,
                            const std::filesystem::path& tensor_proto_dir,
                            std::basic_string<ORTCHAR_T>& external_file_path,
@@ -1297,21 +1333,14 @@ common::Status CreateTensorFromTensorProto(const Env& env, const std::filesystem
   return Status::OK();
 }
 
-std::unique_ptr<ONNX_NAMESPACE::TensorProto> GetTensorProtoWithDataIfInMemory(
-    const ONNX_NAMESPACE::TensorProto& tensor_proto) {
-  if (utils::HasExternalData(tensor_proto)) {
-    // Other libs such as TRT and OV currently do not understand ORT specific memory ptr
-    std::unique_ptr<ExternalDataInfo> external_data_info;
-    ORT_THROW_IF_ERROR(ExternalDataInfo::Create(tensor_proto.external_data(), external_data_info));
-    if (external_data_info->GetRelPath().compare(utils::kTensorProtoMemoryAddressTag) == 0) {
-      OrtValue ort_value;
-      ORT_THROW_IF_ERROR(utils::GetExtDataFromTensorProto(Env::Default(), {}, tensor_proto, ort_value));
-      constexpr const bool use_tensor_buffer_false = false;
-      auto result = utils::TensorToTensorProto(ort_value.Get<Tensor>(), tensor_proto.name(), use_tensor_buffer_false);
-      return std::make_unique<ONNX_NAMESPACE::TensorProto>(std::move(result));
-    }
+Status GetTensorProtoWithDataIfInMemory(
+    const ONNX_NAMESPACE::TensorProto& tensor_proto, std::unique_ptr<ONNX_NAMESPACE::TensorProto>& result) {
+  if (HasExternalDataInMemory(tensor_proto)) {
+    return TensorProtoWithExternalDataToTensorProto(tensor_proto, {}, *result);
   }
-  return {};
+
+  result.reset();
+  return Status::OK();
 }
 
 Status TensorProtoToOrtValue(const Env& env, const std::filesystem::path& model_path,

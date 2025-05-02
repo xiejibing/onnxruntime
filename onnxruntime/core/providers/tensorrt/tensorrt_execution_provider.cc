@@ -1345,7 +1345,7 @@ TensorrtExecutionProvider::TensorrtExecutionProvider(const TensorrtExecutionProv
       dla_enable_ = info.dla_enable;
       dla_core_ = info.dla_core;
     }
-    dump_subgraphs_ = info.dump_subgraphs;
+    dump_subgraphs_ = true;  // info.dump_subgraphs;
     engine_cache_enable_ = info.engine_cache_enable;
     weight_stripped_engine_enable_ = info.weight_stripped_engine_enable;
     onnx_model_folder_path_ = info.onnx_model_folder_path;
@@ -2159,19 +2159,19 @@ SubGraphCollection_t TensorrtExecutionProvider::GetSupportedList(SubGraphCollect
           // Initializers that refer to a memory location in OrtValue
           // can not be handled by TRT (unlike those that are on disk).
           // This prevents us from sharing the data and we have to make a copy here.
-          constexpr const bool load_initializers_in_memory_true = true;
+          constexpr const bool load_initializers_inline_true = true;
           const auto& node = graph.GetNode(node_index[index]);
           std::vector<onnxruntime::NodeArg*> inputs, outputs;
           for (auto input : node->InputDefs()) {
             auto& n_input = graph_build.GetOrCreateNodeArg(input->Name(), input->TypeAsProto());
             inputs.push_back(&n_input);
             graph_utils::MakeInitializerCopyIfNotExist(graph.GetGraph(), graph_build, input->Name(),
-                                                       load_initializers_in_memory_true);
+                                                       load_initializers_inline_true);
           }
 
           for (auto input : node->ImplicitInputDefs()) {
             graph_utils::MakeInitializerCopyIfNotExist(graph.GetGraph(), graph_build, input->Name(),
-                                                       load_initializers_in_memory_true);
+                                                       load_initializers_inline_true);
           }
           for (auto output : node->OutputDefs()) {
             auto& n_output = graph_build.GetOrCreateNodeArg(output->Name(), output->TypeAsProto());

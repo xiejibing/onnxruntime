@@ -786,19 +786,19 @@ Status CreateModelWithStrippedQDQNodes(const GraphViewer& src_graph,
   }
 
   //  Copy initializers to dst graph.
-  auto& initializers = src_graph.GetAllInitializedTensors();
+  const auto& initializers = src_graph.GetAllInitializedTensors();
 
   InlinedHashSet<std::string> current_scope_initializer_set;
   current_scope_initializer_set.reserve(initializers.size());
 
   // Sort initializers to maintain consistency in model proto created across inference requests
 
-  InlinedVector<InitializedTensorSet::const_iterator> const_inits;
-  const_inits.reserve(initializers.size());
+  InlinedVector<InitializedTensorSet::const_iterator> all_inits;
+  all_inits.reserve(initializers.size());
   for (auto it = initializers.cbegin(), end = initializers.cend(); it != end; ++it) {
-    const_inits.push_back(it);
+    all_inits.push_back(it);
   }
-  std::sort(const_inits.begin(), const_inits.end(), [](const auto& i1, const auto& i2) {
+  std::sort(all_inits.begin(), all_inits.end(), [](const auto& i1, const auto& i2) {
     return i1->first < i2->first;
   });
 
@@ -833,15 +833,13 @@ Status CreateModelWithStrippedQDQNodes(const GraphViewer& src_graph,
     metadata.emplace(key, std::move(value));
   };
 
-  // Handle constant initializers
-  for (const auto& it : const_inits) {
+  // Handle initializers
+  for (const auto& it : all_inits) {
     const auto& [name, init] = *it;
     const auto& initializer_tensor = *init;
 
     std::unique_ptr<ONNX_NAMESPACE::TensorProto> init_with_data;
-    if (utils::HasExternalData(initializer_tensor)) {
-      init_with_data = utils::GetTensorProtoWithDataIfInMemory(initializer_tensor);
-    }
+    ORT_RETURN_IF_ERROR(utils::GetTensorProtoWithDataIfInMemory(initializer_tensor, init_with_data));
 
     // Check if the initializer has external data
     if (!init_with_data &&
@@ -865,7 +863,7 @@ Status CreateModelWithStrippedQDQNodes(const GraphViewer& src_graph,
     current_scope_initializer_set.insert(name);
   }
 
-  // Handle outer-scope constant initializers
+  // Handle outer-scope initializers
   for (auto& node_idx : src_graph.GetNodesInTopologicalOrder()) {
     const auto& node = src_graph.GetNode(node_idx);
     for (const auto& input : node->InputDefs()) {
@@ -877,10 +875,7 @@ Status CreateModelWithStrippedQDQNodes(const GraphViewer& src_graph,
         const auto& initializer_tensor = *src_graph.GetConstantInitializer(input->Name(), true);
 
         std::unique_ptr<ONNX_NAMESPACE::TensorProto> init_with_data;
-        if (utils::HasExternalData(initializer_tensor)) {
-          // We will convert it to a full initializer
-          init_with_data = utils::GetTensorProtoWithDataIfInMemory(initializer_tensor);
-        }
+        ORT_RETURN_IF_ERROR(utils::GetTensorProtoWithDataIfInMemory(initializer_tensor, init_with_data));
 
         // Check if the initializer has external data
         if (!init_with_data &&

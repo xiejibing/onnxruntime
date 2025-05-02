@@ -3427,7 +3427,7 @@ void Graph::AddInitializedTensor(const TensorProto& tensor) {
     // XXX: This overload is used when the tensor does not point to an OrtValue which
     // would need to be updated, but it is okay if it is pointing to flatbuffers at the moment.
     // We will need to create a corresponding OrtValue for flatbuffers as well to make it uniform.
-    if (utils::HasExternalData(tensor)) {
+    if (utils::HasExternalDataInMemory(tensor)) {
       if (ortvalue_initializers_.count(tensor.name()) > 0) {
         ORT_THROW("OrtValue needs to be inserted. Using wrong overload");
       }

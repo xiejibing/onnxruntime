@@ -979,8 +979,10 @@ struct ProviderHost {
                                const std::string& execution_provider_name,
                                bool drop_constant_initializers) = 0;
 
-  virtual inline std::unique_ptr<ONNX_NAMESPACE::TensorProto> Utils__GetTensorProtoWithDataIfInMemory(
-      const ONNX_NAMESPACE::TensorProto& tensor_proto) = 0;
+  virtual Status Utils__GetTensorProtoWithDataIfInMemory(
+      const ONNX_NAMESPACE::TensorProto& tensor_proto, std::unique_ptr<ONNX_NAMESPACE::TensorProto>& result) = 0;
+
+  virtual bool Utils__HasExternalDataInMemory(const ONNX_NAMESPACE::TensorProto& ten_proto) = 0;
 
   // Model
   virtual std::unique_ptr<Model> Model__construct(ONNX_NAMESPACE::ModelProto&& model_proto, const PathString& model_path,
@@ -1110,7 +1112,9 @@ struct ProviderHost {
   virtual NodeArg& GraphUtils__AddInitializerWithExternalData(Graph& graph,
                                                               const ONNX_NAMESPACE::TensorProto& new_initializer) = 0;
   virtual void GraphUtils__MakeInitializerCopyIfNotExist(const Graph& src_graph, Graph& dst_graph,
-                                                         const std::string& name, bool load_in_memory) = 0;
+                                                         const std::string& name, bool load_inline) = 0;
+
+  virtual Status GraphUtils__ConvertInitializerToInlineData(Graph& graph, const std::string& name) = 0;
 
   // Initializer
   virtual Initializer* Initializer__constructor(ONNX_NAMESPACE::TensorProto_DataType data_type,

@@ -76,15 +76,15 @@ void GraphViewerToProto(const GraphViewer& graph_view,
     current_scope_initializer_set.reserve(const_inits.size());
 
     auto get_initializer_with_data = [&](const ONNX_NAMESPACE::TensorProto& init,
-                                         ONNX_NAMESPACE::TensorProto& dest) {
-      if (utils::HasExternalData(init)) {
-        auto full_init = utils::GetTensorProtoWithDataIfInMemory(init);
-        if (full_init) {
-          dest = std::move(*full_init);
-        } else {
-          dest = init;
-        }
+                                         ONNX_NAMESPACE::TensorProto& dest) -> Status {
+      std::unique_ptr<ONNX_NAMESPACE::TensorProto> full_init;
+      ORT_RETURN_IF_ERROR(utils::GetTensorProtoWithDataIfInMemory(init, full_init));
+      if (full_init) {
+        dest = std::move(*full_init);
+      } else {
+        dest = init;
       }
+      return Status::OK();
     };
 
     // Handle this scope initializers
@@ -92,7 +92,7 @@ void GraphViewerToProto(const GraphViewer& graph_view,
       const auto& [name, init] = *it;
       current_scope_initializer_set.insert(name);
       auto* p_initializer = graph_proto.add_initializer();
-      get_initializer_with_data(*init, *p_initializer);
+      ORT_THROW_IF_ERROR(get_initializer_with_data(*init, *p_initializer));
     }
 
     // handle outer scope value which is a constant initializer
@@ -108,7 +108,7 @@ void GraphViewerToProto(const GraphViewer& graph_view,
           if (outer_scope_init != nullptr) {
             current_scope_initializer_set.insert(input->Name());
             auto* p_initializer = graph_proto.add_initializer();
-            get_initializer_with_data(*outer_scope_init, *p_initializer);
+            ORT_THROW_IF_ERROR(get_initializer_with_data(*outer_scope_init, *p_initializer));
           }
         }
       }

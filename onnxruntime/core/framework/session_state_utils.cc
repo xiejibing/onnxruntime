@@ -273,13 +273,7 @@ common::Status SaveInitializedTensors(
     // in memory we can still trace it
     bool trace_allocation = exec_plan.GetLocation(ort_value_index).Type() != OrtDevice::CPU;
     if (trace_allocation) {
-      if (utils::HasExternalData(*tensor_proto)) {
-        /// No quick way to find out if we are dealing with the pointer
-        /// Except may quickly check if ortvalue with the same name exists in graph ortvalue_initializers_
-        std::unique_ptr<ExternalDataInfo> external_data_info;
-        ORT_RETURN_IF_ERROR(ExternalDataInfo::Create(tensor_proto->external_data(), external_data_info));
-        trace_allocation = external_data_info->GetRelPath().compare(utils::kTensorProtoMemoryAddressTag) == 0;
-      }
+      trace_allocation = utils::HasExternalDataInMemory(*tensor_proto);
     }
 
     if (trace_allocation) {
