@@ -351,7 +351,8 @@ Status ConvertInitializerToInlineData(Graph& graph, const std::string& name) {
   if (graph.GetInitializedTensor(name, initializer) && utils::HasExternalDataInMemory(*initializer)) {
     ONNX_NAMESPACE::TensorProto tensor_proto;
     ORT_THROW_IF_ERROR(utils::TensorProtoWithExternalDataToTensorProto(*initializer, {}, tensor_proto));
-    ORT_RETURN_IF_ERROR(graph.ReplaceInitializedTensor(std::move(tensor_proto), OrtValue{}));
+    graph.RemoveInitializedTensor(name);
+    graph.AddInitializedTensor(tensor_proto);
     GetOrCreateNodeArg(graph, tensor_proto);
   }
   return Status::OK();

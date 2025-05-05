@@ -259,16 +259,19 @@ Status TensorProtoWithExternalDataToTensorProto(
   ORT_RETURN_IF_NOT(HasExternalData(ten_proto), "Input tensor does not have external data.");
 
   // Copy the metadata from the source tensor to the new tensor
-  new_tensor_proto = ten_proto;
-  new_tensor_proto.clear_external_data();  // Clear external data references
-  new_tensor_proto.clear_raw_data();       // Clear any existing raw data
+  ONNX_NAMESPACE::TensorProto result;
+  result.set_name(ten_proto.name());
+  result.set_data_type(ten_proto.data_type());
+  result.mutable_dims()->CopyFrom(ten_proto.dims());
 
   // Load the external data into memory
   std::vector<uint8_t> unpacked_data;
   ORT_RETURN_IF_ERROR(ReadExternalDataForTensor(ten_proto, model_path, unpacked_data));
 
   // Set the raw data in the new tensor
-  new_tensor_proto.set_raw_data(unpacked_data.data(), unpacked_data.size());
+  result.set_raw_data(unpacked_data.data(), unpacked_data.size());
+
+  new_tensor_proto = std::move(result);
 
   return Status::OK();
 }
@@ -1336,6 +1339,7 @@ common::Status CreateTensorFromTensorProto(const Env& env, const std::filesystem
 Status GetTensorProtoWithDataIfInMemory(
     const ONNX_NAMESPACE::TensorProto& tensor_proto, std::unique_ptr<ONNX_NAMESPACE::TensorProto>& result) {
   if (HasExternalDataInMemory(tensor_proto)) {
+    result = std::make_unique<ONNX_NAMESPACE::TensorProto>();
     return TensorProtoWithExternalDataToTensorProto(tensor_proto, {}, *result);
   }
 
